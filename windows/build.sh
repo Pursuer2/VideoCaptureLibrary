@@ -1,0 +1,1 @@
+$CXX -shared -s -o xplatdll.dll dll_video_capture.cpp dllmain.cpp -lStrmiids -lOle32 -lOleAut32
