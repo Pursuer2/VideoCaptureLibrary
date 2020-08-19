@@ -1,4 +1,4 @@
-package xplat.backend.android.videocapture;
+package project.xplat.backend.android.videocapture;
 import android.hardware.*;
 import android.hardware.Camera.Parameters;
 import android.opengl.GLES20;
@@ -7,12 +7,19 @@ import android.graphics.SurfaceTexture;
 
 import java.io.*;
 import java.nio.IntBuffer;
+import java.util.Stack;
 
 public class VideoCaptureC{
 
 	public VideoCaptureC(){}
 	public static int enumIndex;
 	public static int enumCnt;
+	
+	public static Stack<Object> callStack=new Stack<Object>();
+	public static void init() {
+		System.loadLibrary("dll_video_capture");
+	}
+	
 	public static void startQueryDevice(){
 		enumIndex=0;
 		enumCnt=Camera.getNumberOfCameras();
@@ -90,14 +97,7 @@ public class VideoCaptureC{
 		}
 		
 	}
-	public static void jniPreviewCallback(VideoCaptureDevice cam,byte[] buffer){
-		try {
-			FileOutputStream file=new FileOutputStream(new File("/sdcard/log"),true);
-			file.write(buffer);
-			file.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+	
+	public native static void jniPreviewCallback(VideoCaptureDevice cam,byte[] buffer);
 	
 }

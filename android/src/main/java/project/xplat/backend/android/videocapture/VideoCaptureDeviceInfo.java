@@ -1,4 +1,4 @@
-package xplat.backend.android.videocapture;
+package project.xplat.backend.android.videocapture;
 
 public class VideoCaptureDeviceInfo{
 	public String id;

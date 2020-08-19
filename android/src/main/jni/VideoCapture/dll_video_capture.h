@@ -1,18 +1,27 @@
 
-struct VideoCaptureDeviceInfo{
+#ifndef _DLL_VIDEO_CAPTURE_H
+#define _DLL_VIDEO_CAPTURE_H
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+typedef struct{
 	char *id;
 	char *name;
 	char *description;
 	void *pMoniker;
-};
-struct VideoCaptureStatus{
-	long mediaType;
-	long bitPerPixel;
-	long frameWidth;
-	long frameHeight;
-	long exposure;
-	long zoom;
-};
+} VideoCaptureDeviceInfo;
+typedef struct {
+	uint32_t mediaType;
+	uint32_t bitPerPixel;
+	uint32_t frameWidth;
+	uint32_t frameHeight;
+	uint32_t exposure;
+	uint32_t zoom;
+} VideoCaptureStatus;
 
 #define MEDIATYPE_UNKNOWN 1
 #define MEDIATYPE_RGB24 2
@@ -33,13 +42,9 @@ typedef void *VideoCaptureDevice;
 typedef void(*OnDeviceEvent)(VideoCaptureDevice device,long event, unsigned char *pBuffer, long bufferLen);
 
 
-struct VideoCaptureFunc;
-struct VideoCaptureLibrary{
-	VideoCaptureFunc *ptvbl;
-	int refCnt;
-};
 
-struct VideoCaptureFunc{
+
+typedef struct {
 	int(*StartQueryDevice)();
 	int(*NextDevice)(VideoCaptureDeviceInfo *info);
 	int(*ReleaseDeviceInfo)(VideoCaptureDeviceInfo *info);
@@ -51,6 +56,12 @@ struct VideoCaptureFunc{
 	int(*SetCallback)(OnDeviceEvent callback);
 	int(*GetCallback)(OnDeviceEvent *callback);
 	int(*GetDeviceStatus)(VideoCaptureDevice *device,VideoCaptureStatus *status);
-};
+}VideoCaptureFunc;
 
-typedef int(*video_capture_QueryInterface)(VideoCaptureLibrary **result);
+extern int video_capture_QueryInterface(VideoCaptureFunc **result);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

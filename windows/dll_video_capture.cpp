@@ -1,11 +1,15 @@
 
 #include "dll_video_capture.h"
-#include "comutil.h"
+#include <stdio.h>
+#include <comutil.h>
 #include <windows.h>
 #include <dshow.h>
 #include <combaseapi.h>
 
-
+#ifndef dll_video_capture_malloc
+#define dll_video_capture_malloc malloc
+#define dll_video_capture_free free
+#endif
 
 class CSampleGrabberCB;
 EXTERN_C const IID IID_ISampleGrabberCB;
@@ -180,25 +184,25 @@ int vcNextVideoCaptureDevice(VideoCaptureDeviceInfo *info){
 			VariantInit(&var);
 			prop->Read(L"DevicePath", &var, 0);
 			wchar_t *lpWideChar = ((wchar_t *)var.bstrVal);
-			int buffReq = WideCharToMultiByte(CP_UTF8, NULL, lpWideChar, -1, NULL, 0, NULL, NULL);
+			int buffReq = WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, NULL, 0, NULL, NULL);
 			info->id = new char[buffReq];
-			WideCharToMultiByte(CP_UTF8, NULL, lpWideChar, -1, info->id, buffReq, NULL, NULL);
+			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, info->id, buffReq, NULL, NULL);
 			VariantClear(&var);
 
 			VariantInit(&var);
 			prop->Read(L"FriendlyName", &var, 0);
 			lpWideChar = ((wchar_t *)var.bstrVal);
-			buffReq = WideCharToMultiByte(CP_UTF8, NULL, lpWideChar, -1, NULL, 0, NULL, NULL);
+			buffReq = WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, NULL, 0, NULL, NULL);
 			info->name = new char[buffReq];
-			WideCharToMultiByte(CP_UTF8, NULL, lpWideChar, -1, info->name, buffReq, NULL, NULL);
+			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, info->name, buffReq, NULL, NULL);
 			VariantClear(&var);
 
 			VariantInit(&var);
 			prop->Read(L"Description", &var, 0);
 			lpWideChar = ((wchar_t *)var.bstrVal);
-			buffReq = WideCharToMultiByte(CP_UTF8, NULL, lpWideChar, -1, NULL, 0, NULL, NULL);
+			buffReq = WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, NULL, 0, NULL, NULL);
 			info->description = new char[buffReq];
-			WideCharToMultiByte(CP_UTF8, NULL, lpWideChar, -1, info->description, buffReq, NULL, NULL);
+			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, info->description, buffReq, NULL, NULL);
 			VariantClear(&var);
 
 			prop->Release();
@@ -394,42 +398,40 @@ int vcGetDeviceStatus(VideoCaptureDevice *device, VideoCaptureStatus *status){
 	}
 	long flag;
 	if (dev->m_camctl){
-		dev->m_camctl->Get(CameraControl_Exposure, &status->exposure, &flag);
-		dev->m_camctl->Get(CameraControl_Zoom, &status->zoom, &flag);
+		long exposure,zoom;
+		dev->m_camctl->Get(CameraControl_Exposure, &exposure, &flag);
+		dev->m_camctl->Get(CameraControl_Zoom, &zoom, &flag);
+		status->exposure=exposure;
+		status->zoom=zoom;
 	}
 	return 0;
 }
 
 extern "C"{
-	static VideoCaptureLibrary *video_capture_Interface;
-
-	__declspec(dllexport)
-		int video_capture_QueryInterface_Impl(VideoCaptureLibrary **result){
+	static VideoCaptureFunc *video_capture_Interface;
+	extern int video_capture_QueryInterface(VideoCaptureFunc **result){
 		if (video_capture_Interface){
 			*result = video_capture_Interface;
 			return 0;
 		}
 		CoInitialize(0);
-		video_capture_Interface = new VideoCaptureLibrary();
-		video_capture_Interface->ptvbl = new VideoCaptureFunc();
-		video_capture_Interface->ptvbl->StartQueryDevice = vcStartQueryVideoCaptureDevice;
-		video_capture_Interface->ptvbl->NextDevice = vcNextVideoCaptureDevice;
-		video_capture_Interface->ptvbl->CloseQueryDevice = vcCloseQueryVideoCaptureDevice;
-		video_capture_Interface->ptvbl->ReleaseDeviceInfo = vcReleaseVideoCaptureDeviceInfo;
-		video_capture_Interface->ptvbl->OpenDevice = vcOpenVideoCaptureDevice;
-		video_capture_Interface->ptvbl->CloseDevice = vcCloseVideoCaptureDevice;
-		video_capture_Interface->ptvbl->StartDevice = vcStartVideoCaptureDevice;
-		video_capture_Interface->ptvbl->StopDevice = vcStopVideoCaptureDevice;
-		video_capture_Interface->ptvbl->SetCallback = vcSetCallback;
-		video_capture_Interface->ptvbl->GetCallback = vcGetCallback;
-		video_capture_Interface->ptvbl->GetDeviceStatus = vcGetDeviceStatus;
+		video_capture_Interface = new VideoCaptureFunc();
+		video_capture_Interface->StartQueryDevice = vcStartQueryVideoCaptureDevice;
+		video_capture_Interface->NextDevice = vcNextVideoCaptureDevice;
+		video_capture_Interface->CloseQueryDevice = vcCloseQueryVideoCaptureDevice;
+		video_capture_Interface->ReleaseDeviceInfo = vcReleaseVideoCaptureDeviceInfo;
+		video_capture_Interface->OpenDevice = vcOpenVideoCaptureDevice;
+		video_capture_Interface->CloseDevice = vcCloseVideoCaptureDevice;
+		video_capture_Interface->StartDevice = vcStartVideoCaptureDevice;
+		video_capture_Interface->StopDevice = vcStopVideoCaptureDevice;
+		video_capture_Interface->SetCallback = vcSetCallback;
+		video_capture_Interface->GetCallback = vcGetCallback;
+		video_capture_Interface->GetDeviceStatus = vcGetDeviceStatus;
 		*result = video_capture_Interface;
 		return 0;
 	}
-	__declspec(dllexport)
-		int video_capture_ReleaseInterface_Impl(VideoCaptureLibrary **result){
-		delete video_capture_Interface->ptvbl;
-		delete video_capture_Interface;
+	int video_capture_ReleaseInterface(VideoCaptureFunc **result){
+		dll_video_capture_free(video_capture_Interface);
 		video_capture_Interface = NULL;
 		return 0;
 	}
