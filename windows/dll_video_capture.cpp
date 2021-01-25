@@ -148,9 +148,9 @@ int vcStartQueryVideoCaptureDevice(){
 }
 
 int vcReleaseVideoCaptureDeviceInfo(VideoCaptureDeviceInfo *info){
-	if (info->pMoniker){
-		((IMoniker *)(info->pMoniker))->Release();
-		info->pMoniker = 0;
+	if (info->internalObject){
+		((IMoniker *)(info->internalObject))->Release();
+		info->internalObject = NULL;
 	}
 	if (info->id){
 		delete info->id;
@@ -167,15 +167,18 @@ int vcReleaseVideoCaptureDeviceInfo(VideoCaptureDeviceInfo *info){
 	return 0;
 }
 
-int vcNextVideoCaptureDevice(VideoCaptureDeviceInfo *info){
+VideoCaptureDeviceInfo vcdInfo;
+int vcNextVideoCaptureDevice(VideoCaptureDeviceInfo **info){
 	HRESULT hr;
 	IMoniker *pMoniker = NULL;
 	ULONG cFetched = 0;
 	pClassEnum->Next(1, &pMoniker, &cFetched);
 	IPropertyBag* prop = NULL;
 	if (pMoniker) {
-		vcReleaseVideoCaptureDeviceInfo(info);
-		info->pMoniker = pMoniker;
+		if(vcdInfo.internalObject!=NULL){
+			vcReleaseVideoCaptureDeviceInfo(&vcdInfo);
+		}
+		vcdInfo.internalObject = pMoniker;
 		hr = pMoniker->BindToStorage(0, 0, IID_IPropertyBag, (void**)&prop);
 		if (prop) {
 			hr = pMoniker->BindToStorage(0, 0, IID_IPropertyBag, (void**)&prop);
@@ -185,37 +188,44 @@ int vcNextVideoCaptureDevice(VideoCaptureDeviceInfo *info){
 			prop->Read(L"DevicePath", &var, 0);
 			wchar_t *lpWideChar = ((wchar_t *)var.bstrVal);
 			int buffReq = WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, NULL, 0, NULL, NULL);
-			info->id = new char[buffReq];
-			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, info->id, buffReq, NULL, NULL);
+			vcdInfo.id = new char[buffReq];
+			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, vcdInfo.id, buffReq, NULL, NULL);
 			VariantClear(&var);
 
 			VariantInit(&var);
 			prop->Read(L"FriendlyName", &var, 0);
 			lpWideChar = ((wchar_t *)var.bstrVal);
 			buffReq = WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, NULL, 0, NULL, NULL);
-			info->name = new char[buffReq];
-			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, info->name, buffReq, NULL, NULL);
+			vcdInfo.name = new char[buffReq];
+			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, vcdInfo.name, buffReq, NULL, NULL);
 			VariantClear(&var);
 
 			VariantInit(&var);
 			prop->Read(L"Description", &var, 0);
 			lpWideChar = ((wchar_t *)var.bstrVal);
 			buffReq = WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, NULL, 0, NULL, NULL);
-			info->description = new char[buffReq];
-			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, info->description, buffReq, NULL, NULL);
+			vcdInfo.description = new char[buffReq];
+			WideCharToMultiByte(CP_UTF8, 0, lpWideChar, -1, vcdInfo.description, buffReq, NULL, NULL);
 			VariantClear(&var);
 
 			prop->Release();
 			prop = NULL;
+			*info=&vcdInfo;
 			return 0;
 		}
+	}else{
+		*info=NULL;
+		return -1;
 	}
-	return -1;
+	
 }
 
 
 
 int vcCloseQueryVideoCaptureDevice(){
+	if(vcdInfo.internalObject!=NULL){
+		vcReleaseVideoCaptureDeviceInfo(&vcdInfo);
+	}
 	pClassEnum->Release();
 	pClassEnum = NULL;
 	return 0;
@@ -227,7 +237,7 @@ int vcOpenVideoCaptureDevice(VideoCaptureDeviceInfo *info, VideoCaptureDevice *d
 	struct _s_VideoCaptureDevice *dev = new _s_VideoCaptureDevice();
 	*device = (VideoCaptureDevice)dev;
 	IBaseFilter* filterSource = NULL;
-	hr = ((IMoniker *)(info->pMoniker))->BindToObject(0, 0, IID_IBaseFilter, (void **)&filterSource);
+	hr = ((IMoniker *)(info->internalObject))->BindToObject(0, 0, IID_IBaseFilter, (void **)&filterSource);
 	IGraphBuilder* graph = NULL;
 	hr = ::CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC, IID_IGraphBuilder, (void**)&graph);
 	if (graph) {
@@ -408,31 +418,23 @@ int vcGetDeviceStatus(VideoCaptureDevice *device, VideoCaptureStatus *status){
 }
 
 extern "C"{
-	static VideoCaptureFunc *video_capture_Interface;
+	static VideoCaptureFunc video_capture_Interface;
 	extern int video_capture_QueryInterface(VideoCaptureFunc **result){
-		if (video_capture_Interface){
-			*result = video_capture_Interface;
-			return 0;
-		}
 		CoInitialize(0);
-		video_capture_Interface = new VideoCaptureFunc();
-		video_capture_Interface->StartQueryDevice = vcStartQueryVideoCaptureDevice;
-		video_capture_Interface->NextDevice = vcNextVideoCaptureDevice;
-		video_capture_Interface->CloseQueryDevice = vcCloseQueryVideoCaptureDevice;
-		video_capture_Interface->ReleaseDeviceInfo = vcReleaseVideoCaptureDeviceInfo;
-		video_capture_Interface->OpenDevice = vcOpenVideoCaptureDevice;
-		video_capture_Interface->CloseDevice = vcCloseVideoCaptureDevice;
-		video_capture_Interface->StartDevice = vcStartVideoCaptureDevice;
-		video_capture_Interface->StopDevice = vcStopVideoCaptureDevice;
-		video_capture_Interface->SetCallback = vcSetCallback;
-		video_capture_Interface->GetCallback = vcGetCallback;
-		video_capture_Interface->GetDeviceStatus = vcGetDeviceStatus;
-		*result = video_capture_Interface;
+		video_capture_Interface.StartQueryDevice = vcStartQueryVideoCaptureDevice;
+		video_capture_Interface.NextDevice = vcNextVideoCaptureDevice;
+		video_capture_Interface.CloseQueryDevice = vcCloseQueryVideoCaptureDevice;
+		video_capture_Interface.OpenDevice = vcOpenVideoCaptureDevice;
+		video_capture_Interface.CloseDevice = vcCloseVideoCaptureDevice;
+		video_capture_Interface.StartDevice = vcStartVideoCaptureDevice;
+		video_capture_Interface.StopDevice = vcStopVideoCaptureDevice;
+		video_capture_Interface.SetCallback = vcSetCallback;
+		video_capture_Interface.GetCallback = vcGetCallback;
+		video_capture_Interface.GetDeviceStatus = vcGetDeviceStatus;
+		*result = &video_capture_Interface;
 		return 0;
 	}
 	int video_capture_ReleaseInterface(VideoCaptureFunc **result){
-		dll_video_capture_free(video_capture_Interface);
-		video_capture_Interface = NULL;
 		return 0;
 	}
 

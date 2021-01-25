@@ -69,12 +69,14 @@ jfieldID idInfoId = NULL;
 jfieldID idInfoName = NULL;
 jfieldID idInfoDes = NULL;
 static int vcReleaseDeviceInfo(VideoCaptureDeviceInfo *info);
-static int vcNextDevice(VideoCaptureDeviceInfo *info){
+
+VideoCaptureDeviceInfo vcdInfo;
+static int vcNextDevice(VideoCaptureDeviceInfo **info){
 	if (idNextDevice == NULL){
 		idNextDevice = jnienv->GetMethodID(clsVideoCaptureC, nameNextDevice, sigNextDevice);
 	}
 	if (idNextDevice != NULL){
-		vcReleaseDeviceInfo(info);
+		vcReleaseDeviceInfo(&vcdInfo);
 		jobject jinfo=jnienv->CallStaticObjectMethod(clsVideoCaptureC, idNextDevice);
 		if (idInfoId == NULL){
 			idInfoId = jnienv->GetFieldID(clsVideoCaptureInfo, nameInfoId,sigString);
@@ -83,22 +85,25 @@ static int vcNextDevice(VideoCaptureDeviceInfo *info){
 		}
 
 		jstring jstr = (jstring)jnienv->GetObjectField(jinfo, idInfoId);
-		info->id = (char *)jnienv->GetStringUTFChars(jstr,NULL);
+		vcdInfo.id = (char *)jnienv->GetStringUTFChars(jstr,NULL);
 		
 		jstr = (jstring)jnienv->GetObjectField(jinfo, idInfoName);
-		info->name = (char *)jnienv->GetStringUTFChars(jstr, NULL);
+		vcdInfo.name = (char *)jnienv->GetStringUTFChars(jstr, NULL);
 
 		jstr = (jstring)jnienv->GetObjectField(jinfo, idInfoDes);
-		info->description = (char *)jnienv->GetStringUTFChars(jstr, NULL);
+		vcdInfo.description = (char *)jnienv->GetStringUTFChars(jstr, NULL);
 
 		jnienv->NewGlobalRef(jinfo);
-		info->pMoniker = jinfo;
+		vcdInfo.internalObject = jinfo;
+		*info=&vcdInfo;
 		return 0;
+	}else{
+		*info=NULL;
+		return -1;
 	}
-	return -1;
 }
 static int vcReleaseDeviceInfo(VideoCaptureDeviceInfo *info){
-	jobject jinfo = (jobject)info->pMoniker;
+	jobject jinfo = (jobject)info->internalObject;
 	if (jinfo == NULL){
 		return -1;
 	}
@@ -115,7 +120,7 @@ static int vcReleaseDeviceInfo(VideoCaptureDeviceInfo *info){
 		jnienv->ReleaseStringUTFChars(jstr, info->description);
 	}
 	jnienv->DeleteGlobalRef(jinfo);
-	info->pMoniker = NULL;
+	info->internalObject = NULL;
 	return 0;
 }
 
@@ -123,6 +128,9 @@ const char *nameCloseQuery = "closeDeviceQuery";
 const char *sigCloseQuery = sigStartQuery;
 jmethodID idCloseQuery = NULL;
 static int vcCloseQueryDevice(){
+	if(vcdInfo.internalObject!=NULL){
+		vcReleaseDeviceInfo(&vcdInfo);
+	}
 	if (idCloseQuery == NULL){
 		idCloseQuery = jnienv->GetMethodID(clsVideoCaptureC, nameCloseQuery, sigCloseQuery);
 	}
@@ -141,7 +149,7 @@ static int vcOpenDevice(VideoCaptureDeviceInfo *info, VideoCaptureDevice *device
 		idOpenDevice = jnienv->GetMethodID(clsVideoCaptureC,nameOpenDevice,sigOpenDevice);
 	}
 	if (idOpenDevice != NULL){
-		jobject camdev = jnienv->CallStaticObjectMethod(clsVideoCaptureC, idOpenDevice, info->pMoniker);
+		jobject camdev = jnienv->CallStaticObjectMethod(clsVideoCaptureC, idOpenDevice, info->internalObject);
 		jnienv->NewGlobalRef(camdev);
 		*device = camdev;
 		return 0;
@@ -231,30 +239,22 @@ static int vcGetCallback(OnDeviceEvent *callback){
 	return 0;
 }
 extern "C"{
-	static VideoCaptureFunc *video_capture_Interface;
+	static VideoCaptureFunc video_capture_Interface;
 	extern int video_capture_QueryInterface(VideoCaptureFunc **result){
-		if (video_capture_Interface){
-			*result = video_capture_Interface;
-			return 0;
-		}
-		video_capture_Interface = (VideoCaptureFunc *)dll_video_capture_malloc(sizeof(VideoCaptureFunc));
-		video_capture_Interface->StartQueryDevice = vcStartQueryDevice;
-		video_capture_Interface->NextDevice = vcNextDevice;
-		video_capture_Interface->CloseQueryDevice = vcCloseQueryDevice;
-		video_capture_Interface->ReleaseDeviceInfo = vcReleaseDeviceInfo;
-		video_capture_Interface->OpenDevice = vcOpenDevice;
-		video_capture_Interface->CloseDevice = vcCloseDevice;
-		video_capture_Interface->StartDevice = vcStartDevice;
-		video_capture_Interface->StopDevice = vcStopDevice;
-		video_capture_Interface->SetCallback = vcSetCalback;
-		video_capture_Interface->GetCallback = vcGetCallback;
-		video_capture_Interface->GetDeviceStatus = vcGetDeviceStatus;
-		*result = video_capture_Interface;
+		video_capture_Interface.StartQueryDevice = vcStartQueryDevice;
+		video_capture_Interface.NextDevice = vcNextDevice;
+		video_capture_Interface.CloseQueryDevice = vcCloseQueryDevice;
+		video_capture_Interface.OpenDevice = vcOpenDevice;
+		video_capture_Interface.CloseDevice = vcCloseDevice;
+		video_capture_Interface.StartDevice = vcStartDevice;
+		video_capture_Interface.StopDevice = vcStopDevice;
+		video_capture_Interface.SetCallback = vcSetCalback;
+		video_capture_Interface.GetCallback = vcGetCallback;
+		video_capture_Interface.GetDeviceStatus = vcGetDeviceStatus;
+		*result = &video_capture_Interface;
 		return 0;
 	}
 	int video_capture_ReleaseInterface(VideoCaptureFunc **result){
-		dll_video_capture_free(video_capture_Interface);
-		video_capture_Interface = NULL;
 		return 0;
 	}
 

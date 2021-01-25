@@ -12,8 +12,9 @@ typedef struct{
 	char *id;
 	char *name;
 	char *description;
-	void *pMoniker;
+	void *internalObject;
 } VideoCaptureDeviceInfo;
+
 typedef struct {
 	uint32_t mediaType;
 	uint32_t bitPerPixel;
@@ -46,8 +47,7 @@ typedef void(*OnDeviceEvent)(VideoCaptureDevice device,long event, unsigned char
 
 typedef struct {
 	int(*StartQueryDevice)();
-	int(*NextDevice)(VideoCaptureDeviceInfo *info);
-	int(*ReleaseDeviceInfo)(VideoCaptureDeviceInfo *info);
+	int(*NextDevice)(VideoCaptureDeviceInfo **info);
 	int(*CloseQueryDevice)();
 	int(*OpenDevice)(VideoCaptureDeviceInfo *info, VideoCaptureDevice *device);
 	int(*StartDevice)(VideoCaptureDevice *device);
