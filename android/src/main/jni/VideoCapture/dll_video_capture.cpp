@@ -31,7 +31,7 @@ JNI_OnLoad(JavaVM *vm, void *reserved){
 
 static OnDeviceEvent userCallback;
 
-void Java_project_xplat_backend_videocapture_VideoCaptureC_jniPreviewCallback(JNIEnv *env, jobject thisobj, jobject camdev, jbyteArray cambuff){
+void Java_project_xplat_backend_android_videocapture_VideoCaptureC_jniPreviewCallback(JNIEnv *env, jobject thisobj, jobject camdev, jbyteArray cambuff){
 	
 	struct _s_VideoCaptureDevice **pDev;
 	jbyte *buff = env->GetByteArrayElements(cambuff, NULL);
